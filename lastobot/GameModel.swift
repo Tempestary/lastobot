@@ -16,13 +16,12 @@ class GameModel {
         return String((0..<length).map { _ in letters.randomElement()! })
     }
 
-    func createGame(userId: String, gameNumber: String) {
-        gamesBase["\(gameNumber)"] = Game(id: gameNumber, owner: userId, isFinished: false, teams: [], question: 1)
-        print("ZZZ \(gamesBase)")
+    func createGame(ownerId: String, gameNumber: String) {
+        gamesBase["\(gameNumber)"] = Game(id: gameNumber, owner: ownerId, isFinished: false, teams: [], question: 1)
     }
 
-    func finishGame(userId: String ) -> [String] {
-        guard let game = getActiveGame(ownerId: userId) else {
+    func finishGame(forOwnerId: String ) -> [String] {
+        guard let game = getActiveGame(ownerId: forOwnerId) else {
             return []
         }
         let gameId = game.id
@@ -32,9 +31,32 @@ class GameModel {
         dump(gamesBase)
         return idsToNotify
     }
-//    func teamsToNotify(gameId: String) -> [Team] {
-//        return gamesBase[gameId]!.teams
-//    }
+    func teamsToNotify(ownerId: String) -> [String] {
+        guard let game = getActiveGame(ownerId: ownerId) else {
+            return []
+        }
+        let gameId = game.id
+        var idsToNotify = gamesBase[gameId]!.teams.map { $0.id }
+        return idsToNotify
+    }
+
+    func getCurrentQuestion(userId: String) -> Int {
+        guard let game = getActiveGame(ownerId: userId) else {
+            return 0
+        }
+        let gameId = game.id
+        var currentQuestionNumber = gamesBase[gameId]!.question
+        return currentQuestionNumber
+
+    }
+
+    func incrementQuestionNumber(userId: String) {
+        guard let game = getActiveGame(ownerId: userId) else {
+            return
+        }
+        let gameId = game.id
+        gamesBase[gameId]!.question += 1
+    }
 
     func hasActiveGame(userId: String) -> Bool {
         gamesBase.map { $0.value.owner }.contains( userId ) && gamesBase.map { $0.value.isFinished }.contains( false )
@@ -42,6 +64,10 @@ class GameModel {
 
     private func getActiveGame(ownerId: String) -> Game? {
         return gamesBase.values.first { $0.owner == ownerId && $0.isFinished == false }
+    }
+
+    func getTeamGame(teamId: String) -> Game? {
+        return gamesBase.values.first { $0.teams.map { $0.id }.contains(teamId) && $0.isFinished == false }
     }
 
     private func isGameActive(gameId: String) -> Bool {

@@ -53,22 +53,21 @@ class Bot {
                                                                                     BotCommands.join : "Присоединиться к игре",
                                                                                     BotCommands.help : "Помощь",
             ])
-
-            case .startgame:
+            case .start:
                 if gameModel.hasActiveGame(userId: data.from.userId) {
                     sendMessage(chatId: chatData.chatId, text: "Похоже, у тебя есть незавершенная игра. Пожалуйста, заверши ее перед тем, как создавать новую или присоединяться к игре", buttons: [
                         BotCommands.finish : "Закончить игру"])
                 } else {
                     let gameNumber = gameModel.randomString(length: 9)
-                    gameModel.createGame(userId: data.from.userId, gameNumber: gameNumber)
+                    gameModel.createGame(ownerId: data.from.userId, gameNumber: gameNumber)
                     sendMessage(chatId: chatData.chatId, text: """
                                                                Игра создана! ID новой игры: \(gameNumber), ее нужно передать капитанам.
-                                                               Я сообщу тебе, когда команды начнут присоединяться к игре. После того, как все команды соберутся, жми "Играть!"
+                                                               Я сообщу тебе, когда команды начнут присоединяться к игре. После того, как все команды соберутся, жми "Задать первый вопрос".
                                                                """, buttons: [BotCommands.teamsready : "Задать первый вопрос",
                                                                               BotCommands.finish : "Закончить игру"]) 
                 }
             case .finish:
-                let usersToNotify = gameModel.finishGame(userId: data.from.userId)
+                let usersToNotify = gameModel.finishGame(forOwnerId: data.from.userId)
                 for user in usersToNotify {
                     sendMessage(chatId: user, text: "Игра успешно закончена. Похлопаем ведущему и ласточке - и можно играть заново!", buttons: [BotCommands.startgame : "Начать новую игру",
                                                                                                                                                 BotCommands.join : "Присоединиться к игре"])
@@ -80,6 +79,24 @@ class Bot {
                                                            где вместо id укажите присланный ведущим id игры, а вместо teamName - название команды без кавычек, например
                                                            /join l337ftw Любимый Кальмар Коздимы
                                                            """#, buttons: [BotCommands.help : "Помощь"])
+
+            case .teamsready, .setquestiontimer:
+                let teamsToNotify = gameModel.teamsToNotify(ownerId: data.from.userId)
+                let question = gameModel.getCurrentQuestion(userId: data.from.userId)
+                gameModel.incrementQuestionNumber(userId: data.from.userId)
+                let timer = Timer.scheduledTimer(withTimeInterval: 20.0, repeats: false) { timer in
+                    for team in teamsToNotify {
+                        self.sendMessage(chatId: team, text: "Вопрос \(question). Осталось 10 секунд. Для отправки ответа выполните команду /answer ответ",
+                            buttons: [BotCommands.answer: "Ответить"])
+                    }
+                    timer.invalidate()
+                }
+                timer.fire()
+//                for team in teamsToNotify {
+//                    sendMessage(chatId: team, text: "Вопрос \(question). До сбора ответов осталось 5 секунд. Для отправки ответа выполните команду #/answer ответ#",
+//                        buttons: [BotCommands.answer: "Ответить"])
+//                }
+
 
             default:
                 sendMessageToUser(message: TextMessage(text: "Я вас услышал", buttons: [], chatId: chatData.chatId))
@@ -144,16 +161,25 @@ class Bot {
         let command = BotCommands(rawValue: command)
 
         switch command {
-        case .startgame, .start:
+        case .start:
             sendMessage(chatId: chatId, text: """
                                               Привет! Создай игру или присоединись к существующей! Полные правила игры смотри по кнопке Правила.
                                               """,
-                    buttons: [BotCommands.startgame : "Новая игра",
-                             BotCommands.join : "Присоединиться к игре",
-                              BotCommands.rules : "Правила",
-                              BotCommands.help : "Помощь",
+                    buttons: [BotCommands.startgame : "Новая игра", BotCommands.join : "Присоединиться к игре", BotCommands.rules : "Правила", BotCommands.help : "Помощь",
                     ])
-
+        case .startgame:
+            if gameModel.hasActiveGame(userId: chatId) {
+                sendMessage(chatId: chatId, text: "Похоже, у тебя есть незавершенная игра. Пожалуйста, заверши ее перед тем, как создавать новую или присоединяться к игре", buttons: [
+                    BotCommands.finish : "Закончить игру"])
+            } else {
+                let gameNumber = gameModel.randomString(length: 9)
+                gameModel.createGame(ownerId: chatId, gameNumber: gameNumber)
+                sendMessage(chatId: chatId, text: """
+                                                           Игра создана! ID новой игры: \(gameNumber), ее нужно передать капитанам.
+                                                           Я сообщу тебе, когда команды начнут присоединяться к игре. После того, как все команды соберутся, жми "Задать первый вопрос".
+                                                           """, buttons: [BotCommands.teamsready : "Задать первый вопрос",
+                                                                          BotCommands.finish : "Закончить игру"])
+        }
         case .join:
             guard let arguments = arguments else {
                 sendMessage(chatId: chatId, text: """
@@ -175,17 +201,38 @@ class Bot {
                 return
             }
             sendMessage(chatId: chatId, text: "Вы в игре! Как только все команды соберутся, ведущий зачитает первый вопрос, а я помогу собрать ответы.")
-            sendMessage(chatId: gameModel.getOwnerById(gameId: args[0])!, text: "Команда \(team.name) добавлена в игру", buttons: [BotCommands.teamsready : "Задать первый вопрос",
+            sendMessage(chatId: gameModel.getOwnerById(gameId: args[0])!, text: "Команда \(team.name) вступила в игру", buttons: [BotCommands.teamsready : "Задать первый вопрос",
                                                                                                                                    BotCommands.finish : "Закончить игру"])
         case .finish:
-            let usersToNotify = gameModel.finishGame(userId: chatId)
-            for user in usersToNotify {
-                sendMessage(chatId: user, text: "Игра успешно закончена. Похлопаем ведущему и ласточке - и можно играть заново!", buttons: [BotCommands.startgame : "Начать новую игру",
-                                                                                                            BotCommands.join : "Присоединиться к игре"])
+            if gameModel.hasActiveGame(userId: chatId) {
+                let usersToNotify = gameModel.finishGame(forOwnerId: chatId)
+                for user in usersToNotify {
+                    sendMessage(chatId: user, text: "Игра успешно закончена. Похлопаем ведущему и ласточке - и можно играть заново!", buttons: [BotCommands.start : "Начать новую игру",
+                                                                                                                                                BotCommands.join : "Присоединиться к игре"])
+                }
+            } else {
+                sendMessage(chatId: chatId, text: "Похоже, у тебя нет незавершенных игр.", buttons: [
+                    BotCommands.start : "Начать новую игру"])
             }
 
-//        case .answer:
-            //
+        case .answer:
+            guard let arguments = arguments else {
+                sendMessage(chatId: chatId, text: """
+                                                  Для команды /answer требуется аргумент, например 
+                                                  /answer Танос
+                                                  Разрешается передавать в аргументы несколько слов
+                                                  """)
+                return
+            }
+            let args = splitStringIntoCommandAndArguments(text: arguments, argumentCount: 1)
+            guard let currentGame = gameModel.getTeamGame(teamId: chatId) else {
+                sendMessage(chatId: chatId, text: "Не удалось найти вашу активную игру. Возможно, вы не вступали в игровую сессию или игра была завершена")
+                return
+            }
+        sendMessage(chatId: currentGame.owner, text: "Вопрос \(currentGame.question - 1) - \(currentGame.teams.filter { $0.id == chatId}.map { $0.name } ) - \(args[0])",
+            buttons: [BotCommands.setquestiontimer: "Следующий вопрос", BotCommands.finish: "Закончить игру",])
+        sendMessage(chatId: chatId, text: #"Вы ответили "\#(args[0])" на вопрос \#(currentGame.question - 1). Отправлено."#)
+
         default:
             sendMessage(chatId: chatId, text: "Неизвестная команда", buttons: [BotCommands.help : "Помощь"])
         }
