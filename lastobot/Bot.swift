@@ -8,7 +8,7 @@ import Foundation
 
 class Bot {
     let welcomeText = """
-                      Я - бот-ласточка и я помогу тебе поиграть в спортивное ЧГК в условиях самоизоляции в том формате, в каком многие привыкли играть.
+                      Я - бот-ласточка и я помогу тебе поиграть в спортивное ЧГК в условиях самоизоляции в максимально привычном формате.
                       Что для этого нужно? 
                       1) Чат со мной для ведущего и групповой или приватный чат со мной для каждой из команд-участниц.
                       2) Ведущему необходимо создать одну большую видеоконференцию со всеми участниками игры таким образом, 
@@ -23,11 +23,19 @@ class Bot {
                       Через 55 секунд я напомню игрокам о необходимости отправить ответ.
                       Команды могут ответить через команду "/answer ответ".
                       8) Ведущий получит от меня ответы всех команд в формате "номер вопроса - название команды - ответ"
-                      9) Для окончания игры ведущему необходимо нажать на кнопку "закончить игру" или вызвать команду /finish.
+                      9) Для окончания игры ведущему необходимо нажать на кнопку "закончить игру" или вызвать команду /finish. Обязательно завершайте игровые сессии. 
                       """
     var lastEventId = 0
     let apiHandler: IcqApiHandler!
     let gameModel: GameModel!
+
+    func sendStartMessage(chatId: String) {
+        sendMessageToUser(message:TextMessage(text: "Привет! Создай игру или присоединись к существующей! Полные правила игры смотри по кнопке Правила",
+            buttons: [[Button(text: "Новая игра", callbackData: .start), Button(text: "Присоединиться к игре", callbackData: .join)],
+            [Button(text: "Правила", callbackData: .rules), Button(text: "Помощь", callbackData: .help)],
+            [Button(text: "Оставить отзыв", callbackData: .sendfeedback)]],
+            chatId: chatId))
+    }
 
     init() {
         apiHandler = IcqApiHandler()
@@ -49,7 +57,7 @@ class Bot {
             let chatData = data.message.chat
             switch data.callbackData {
             case .rules:
-            sendMessage(chatId: chatData.chatId, text: "\(welcomeText)", buttons: [BotCommands.startgame : "Новая игра",
+            sendMessage(chatId: chatData.chatId, text: "\(welcomeText)", buttons: [BotCommands.start : "Новая игра",
                                                                                     BotCommands.join : "Присоединиться к игре",
                                                                                     BotCommands.help : "Помощь",
             ])
@@ -67,10 +75,16 @@ class Bot {
                                                                               BotCommands.finish : "Закончить игру"]) 
                 }
             case .finish:
-                let usersToNotify = gameModel.finishGame(forOwnerId: data.from.userId)
-                for user in usersToNotify {
-                    sendMessage(chatId: user, text: "Игра успешно закончена. Похлопаем ведущему и ласточке - и можно играть заново!", buttons: [BotCommands.startgame : "Начать новую игру",
-                                                                                                                                                BotCommands.join : "Присоединиться к игре"])
+                if !gameModel.hasActiveGame(userId: data.from.userId) {
+                    sendMessage(chatId: data.from.userId, text: "Похоже, у тебя нет активных игр. Чтобы что-то завершить, нужно что-то начать!", buttons: [BotCommands.start : "Начать новую игру",
+                                                                                                                                                           BotCommands.join : "Присоединиться к игре"])
+                    return
+                } else {
+                    let usersToNotify = gameModel.finishGame(forOwnerId: data.from.userId)
+                    for user in usersToNotify {
+                        sendMessage(chatId: user, text: "Игра успешно закончена. Похлопаем ведущему и ласточке - и можно играть заново!", buttons: [BotCommands.start: "Начать новую игру",
+                                                                                                                                                    BotCommands.join: "Присоединиться к игре"])
+                    }
                 }
             case .join:
                 sendMessage(chatId: chatData.chatId, text: #"""
@@ -81,25 +95,57 @@ class Bot {
                                                            """#, buttons: [BotCommands.help : "Помощь"])
 
             case .teamsready, .setquestiontimer:
-                let teamsToNotify = gameModel.teamsToNotify(ownerId: data.from.userId)
-                let question = gameModel.getCurrentQuestion(userId: data.from.userId)
-                gameModel.incrementQuestionNumber(userId: data.from.userId)
-                let timer = Timer.scheduledTimer(withTimeInterval: 20.0, repeats: false) { timer in
-                    for team in teamsToNotify {
-                        self.sendMessage(chatId: team, text: "Вопрос \(question). Осталось 10 секунд. Для отправки ответа выполните команду /answer ответ",
-                            buttons: [BotCommands.answer: "Ответить"])
+                if gameModel.hasActiveGame(userId: chatData.chatId) {
+                    let teamsToNotify = gameModel.teamsToNotify(ownerId: data.from.userId)
+                    let question = gameModel.getCurrentQuestion(userId: data.from.userId)
+                    gameModel.incrementQuestionNumber(userId: data.from.userId)
+
+                    self.sendMessage(chatId: chatData.chatId, text: "Вопрос \(question). Таймер запущен. Через 50 секунд я напомню командам о необходимости ответа.")
+
+                    DispatchQueue.main.async {
+                        let timer = Timer.scheduledTimer(withTimeInterval: 50.0, repeats: false) { timer in
+                            for team in teamsToNotify {
+                                self.sendMessage(chatId: team, text: """
+                                                                     До сбора ответов сталось 10 секунд. Для отправки ответа выполните команду 
+                                                                     /answer ответ
+                                                                     """,
+                                    buttons: [BotCommands.answer: "Помощь по команде /answer"])
+
+                            }
+                            self.sendMessage(chatId: chatData.chatId, text: "Вопрос \(question). Осталось 10 секунд")
+                        }
                     }
-                    timer.invalidate()
+                } else {
+                    sendMessage(chatId: chatData.chatId, text: "Ой-ой, у тебя нет активной игры. Начни игру, чтоб задавать вопросы или присоединись к игре, чтоб отвечать на вопросы!", buttons: [
+                        BotCommands.start : "Начать новую игру", BotCommands.join : "Присоединиться к игре"])
                 }
-                timer.fire()
-//                for team in teamsToNotify {
-//                    sendMessage(chatId: team, text: "Вопрос \(question). До сбора ответов осталось 5 секунд. Для отправки ответа выполните команду #/answer ответ#",
-//                        buttons: [BotCommands.answer: "Ответить"])
-//                }
+            case .help:
+                sendMessage(chatId: chatData.chatId, text: """
+                                                           Команды, которые я поддерживаю:
+                                                           /start - эта команда запускает меня
+                                                           /stop - а эта останавливает
+                                                           /startgame - создает новую игру с уникальным id
+                                                           /join arg1 arg2 - присоединиться к активной игре с именем команды(может состоять из нескольких слов), пример: /join 5ycIfmdD Салатные листья с Плутона
+                                                           /answer arg1 - ответить на текущий вопрос, пример: /answer котята. Допускается несколько слов в аргументе.
+                                                           /finish - закончить активную игру, выполняется от имени создателя игры. Пожалуйста, не забывайте завершать свои активные игры!
+                                                           /help - показать этот мануал
+                                                           /rules - показать правила карантинного ЧГК
+                                                           /sendfeedback - отправить отзыв обо мне или предложение
+                                                           """)
 
-
+            case .answer:
+                sendMessage(chatId: chatData.chatId, text: """
+                                                           Для ответа вызовите команду /answer ответ, например 
+                                                           /answer Танос
+                                                           Разрешается передавать в аргументы несколько слов
+                                                           """)
+//            case .sendfeedback:
+//                TODO написать оберточку для фидбека
             default:
-                sendMessageToUser(message: TextMessage(text: "Я вас услышал", buttons: [], chatId: chatData.chatId))
+//                sendMessage(chatId: chatData.chatId, text: "404. Пожалуйста, отправьте название кнопки, на которую вы нажали перед тем, как попасть сюда", buttons: [BotCommands.sendfeedback: "Отправить отзыв"])
+//                todo добавить обработку ответа на мое сообщение
+                sendMessage(chatId: chatData.chatId, text: "42, потому что 404 - это слишком избито.")
+
             }
         default:
             break
@@ -162,11 +208,12 @@ class Bot {
 
         switch command {
         case .start:
-            sendMessage(chatId: chatId, text: """
-                                              Привет! Создай игру или присоединись к существующей! Полные правила игры смотри по кнопке Правила.
-                                              """,
-                    buttons: [BotCommands.startgame : "Новая игра", BotCommands.join : "Присоединиться к игре", BotCommands.rules : "Правила", BotCommands.help : "Помощь",
-                    ])
+//            sendMessage(chatId: chatId, text: """
+//                                              Привет! Создай игру или присоединись к существующей! Полные правила игры смотри по кнопке Правила.
+//                                              """,
+//                    buttons: [BotCommands.start : "Новая игра", BotCommands.join : "Присоединиться к игре", BotCommands.rules : "Правила", BotCommands.help : "Помощь",
+//                    ])
+            sendStartMessage(chatId: chatId)
         case .startgame:
             if gameModel.hasActiveGame(userId: chatId) {
                 sendMessage(chatId: chatId, text: "Похоже, у тебя есть незавершенная игра. Пожалуйста, заверши ее перед тем, как создавать новую или присоединяться к игре", buttons: [
@@ -211,8 +258,8 @@ class Bot {
                                                                                                                                                 BotCommands.join : "Присоединиться к игре"])
                 }
             } else {
-                sendMessage(chatId: chatId, text: "Похоже, у тебя нет незавершенных игр.", buttons: [
-                    BotCommands.start : "Начать новую игру"])
+                sendMessage(chatId: chatId, text: "Похоже, у тебя нет активных игр. Чтобы что-то завершить, нужно что-то начать!", buttons: [
+                    BotCommands.start : "Начать новую игру", BotCommands.join : "Присоединиться к игре"])
             }
 
         case .answer:
@@ -232,9 +279,22 @@ class Bot {
         sendMessage(chatId: currentGame.owner, text: "Вопрос \(currentGame.question - 1) - \(currentGame.teams.filter { $0.id == chatId}.map { $0.name } ) - \(args[0])",
             buttons: [BotCommands.setquestiontimer: "Следующий вопрос", BotCommands.finish: "Закончить игру",])
         sendMessage(chatId: chatId, text: #"Вы ответили "\#(args[0])" на вопрос \#(currentGame.question - 1). Отправлено."#)
-
+        case .help:
+            sendMessage(chatId: chatId, text: """
+                                                       Команды, которые я поддерживаю:
+                                                       /start - эта команда запускает меня
+                                                       /stop - а эта останавливает
+                                                       /startgame - создает новую игру с уникальным id
+                                                       /join arg1 arg2 - присоединиться к активной игре с именем команды(может состоять из нескольких слов), пример: /join 5ycIfmdD Салатные листья с Плутона
+                                                       /answer arg1 - ответить на текущий вопрос, пример: /answer котята. Допускается несколько слов в аргументе.
+                                                       /finish - закончить активную игру, выполняется от имени создателя игры. Пожалуйста, не забывайте завершать свои активные игры!
+                                                       /help - показать этот мануал
+                                                       /rules - показать правила карантинного ЧГК
+                                                       /sendfeedback - отправить отзыв обо мне или предложение
+                                                       """)
         default:
-            sendMessage(chatId: chatId, text: "Неизвестная команда", buttons: [BotCommands.help : "Помощь"])
+//            sendMessage(chatId: chatId, text: "Неизвестная команда", buttons: [BotCommands.help : "Помощь"])
+        sendStartMessage(chatId: chatId)
         }
     }
 }
