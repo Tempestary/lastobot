@@ -25,6 +25,17 @@ class Bot {
                       8) Ведущий получит от меня ответы всех команд в формате "номер вопроса - название команды - ответ"
                       9) Для окончания игры ведущему необходимо нажать на кнопку "закончить игру" или вызвать команду /finish. Обязательно завершайте игровые сессии. 
                       """
+
+    let startgameButton = Button(text: "Новая игра", callbackData: .start)
+    let joinButton = Button(text: "Присоединиться к игре", callbackData: .join)
+    let finishButton = Button(text: "Закончить игру", callbackData: .finish)
+    let helpButton = Button(text: "Помощь", callbackData: .help)
+    let rulesButton = Button(text: "Правила", callbackData: .rules)
+    let teamsReadyButton = Button(text: "Задать первый вопрос", callbackData: .teamsready)
+    let setQuestionTimerButton = Button(text: "Следующий вопрос", callbackData: .setquestiontimer)
+    let answerButton = Button(text: "Помощь по команде /answer", callbackData: .answer)
+    let fbButton = Button(text: "Оставить отзыв", callbackData: .fb)
+
     var lastEventId = 0
     let apiHandler: IcqApiHandler!
     let gameModel: GameModel!
@@ -33,7 +44,7 @@ class Bot {
         sendMessageToUser(message:TextMessage(text: "Привет! Создай игру или присоединись к существующей! Полные правила игры смотри по кнопке Правила",
             buttons: [[Button(text: "Новая игра", callbackData: .start), Button(text: "Присоединиться к игре", callbackData: .join)],
             [Button(text: "Правила", callbackData: .rules), Button(text: "Помощь", callbackData: .help)],
-            [Button(text: "Оставить отзыв", callbackData: .sendfeedback)]],
+            [Button(text: "Оставить отзыв", callbackData: .fb)]],
             chatId: chatId))
     }
 
@@ -51,7 +62,7 @@ class Bot {
         switch event.payload {
         case .newMessage(let data):
             let text = splitStringIntoCommandAndArguments(text: data.text, argumentCount: 2)
-            handleCommand(chatId: data.chat.chatId, command: text[0], arguments: text.count < 2 ? nil : text[1])
+            handleCommand(chatId: data.chat.chatId, command: text[0], arguments: text.count < 2 ? nil : text[1], chatData: data)
 
         case .callbackQuery(let data):
             let chatData = data.message.chat
@@ -112,7 +123,10 @@ class Bot {
                                     buttons: [BotCommands.answer: "Помощь по команде /answer"])
 
                             }
-                            self.sendMessage(chatId: chatData.chatId, text: "Вопрос \(question). Осталось 10 секунд")
+                            self.sendMessage(chatId: chatData.chatId, text: "Вопрос \(question). До конца таймера вопроса 10 секунд. На написание и отправку ответа команде дается еще 10 секунд.")
+                        }
+                        let _ = Timer.scheduledTimer(withTimeInterval: 70.0, repeats: false) { _ in
+                            self.sendMessage(chatId: chatData.chatId, text: "Ответы на вопрос \(question) больше не принимаются. Команды все еще могут их отправить, решение принимает Ведущий.")
                         }
                     }
                 } else {
@@ -130,7 +144,7 @@ class Bot {
                                                            /finish - закончить активную игру, выполняется от имени создателя игры. Пожалуйста, не забывайте завершать свои активные игры!
                                                            /help - показать этот мануал
                                                            /rules - показать правила карантинного ЧГК
-                                                           /sendfeedback - отправить отзыв обо мне или предложение
+                                                           /fb arg1 - отправить отзыв обо мне или предложение
                                                            """)
 
             case .answer:
@@ -139,11 +153,9 @@ class Bot {
                                                            /answer Танос
                                                            Разрешается передавать в аргументы несколько слов
                                                            """)
-//            case .sendfeedback:
-//                TODO написать оберточку для фидбека
+            case .fb:
+                sendMessage(chatId: chatData.chatId, text: #"Для отправки отзыва или предложения, пожалуйста, напишите команду "/fb отзыв", без кавычек. Я передам пожелания и предложения разработчику."#)
             default:
-//                sendMessage(chatId: chatData.chatId, text: "404. Пожалуйста, отправьте название кнопки, на которую вы нажали перед тем, как попасть сюда", buttons: [BotCommands.sendfeedback: "Отправить отзыв"])
-//                todo добавить обработку ответа на мое сообщение
                 sendMessage(chatId: chatData.chatId, text: "42, потому что 404 - это слишком избито.")
 
             }
@@ -200,10 +212,10 @@ class Bot {
     }
 
     private func splitStringIntoCommandAndArguments(text: String, argumentCount: Int) -> [String] {
-        return text.split(separator: " ", maxSplits: (argumentCount - 1)).map(String.init)
+        text.split(separator: " ", maxSplits: (argumentCount - 1)).map(String.init)
     }
 
-    private func handleCommand(chatId: String, command: String, arguments: String?) {
+    private func handleCommand(chatId: String, command: String, arguments: String?, chatData: NewMessagePayload? = nil) {
         let command = BotCommands(rawValue: command)
 
         switch command {
@@ -261,7 +273,6 @@ class Bot {
                 sendMessage(chatId: chatId, text: "Похоже, у тебя нет активных игр. Чтобы что-то завершить, нужно что-то начать!", buttons: [
                     BotCommands.start : "Начать новую игру", BotCommands.join : "Присоединиться к игре"])
             }
-
         case .answer:
             guard let arguments = arguments else {
                 sendMessage(chatId: chatId, text: """
@@ -279,6 +290,18 @@ class Bot {
         sendMessage(chatId: currentGame.owner, text: "Вопрос \(currentGame.question - 1) - \(currentGame.teams.filter { $0.id == chatId}.map { $0.name } ) - \(args[0])",
             buttons: [BotCommands.setquestiontimer: "Следующий вопрос", BotCommands.finish: "Закончить игру",])
         sendMessage(chatId: chatId, text: #"Вы ответили "\#(args[0])" на вопрос \#(currentGame.question - 1). Отправлено."#)
+        case .fb:
+            guard let arguments = arguments else {
+                sendMessage(chatId: chatId, text: "Я не могу отправить пустой отзыв :(")
+                return
+            }
+            let args = splitStringIntoCommandAndArguments(text: arguments, argumentCount: 1)
+            guard let chatData = chatData, let firstName = chatData.from.firstName else {
+                sendMessage(chatId: "752532504", text: "Отзыв от UID \(chatId): \(args[0])")
+                return
+            }
+            sendMessage(chatId: "752532504", text: "Отзыв от UID \(chatData.from.userId) (\(firstName)): \(args[0])")
+            sendMessage(chatId: chatId, text: "Отзыв отправлен. Спасибо! Если я понадоблюсь - просто вызовите команду /start в чате.")
         case .help:
             sendMessage(chatId: chatId, text: """
                                                        Команды, которые я поддерживаю:
@@ -290,11 +313,12 @@ class Bot {
                                                        /finish - закончить активную игру, выполняется от имени создателя игры. Пожалуйста, не забывайте завершать свои активные игры!
                                                        /help - показать этот мануал
                                                        /rules - показать правила карантинного ЧГК
-                                                       /sendfeedback - отправить отзыв обо мне или предложение
+                                                       /fb - отправить отзыв обо мне или предложение
                                                        """)
         default:
+            return
 //            sendMessage(chatId: chatId, text: "Неизвестная команда", buttons: [BotCommands.help : "Помощь"])
-        sendStartMessage(chatId: chatId)
+//        sendStartMessage(chatId: chatId)
         }
     }
 }

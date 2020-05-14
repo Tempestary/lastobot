@@ -17,7 +17,7 @@ enum BotCommands: String, Codable {
     case answer = "/answer"
     case getactivegame = "/getactivegame"
     case questionWithMedia = "questionWithMedia"
-    case sendfeedback = "/sendfeedback"
+    case fb = "/fb"
 
     private enum CodingKeys: String, CodingKey {
         case startgame = "/startgame"
