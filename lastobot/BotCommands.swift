@@ -10,6 +10,7 @@ enum BotCommands: String, Codable {
     case start = "/start"
     case join = "/join"
     case finish = "/finish"
+    case finishforce = "/finishforce"
     case help = "/help"
     case rules = "/rules"
     case teamsready = "teamsready"
