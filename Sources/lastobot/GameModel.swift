@@ -38,7 +38,7 @@ class GameModel {
             return []
         }
         let gameId = game.id
-        var idsToNotify = gamesBase[gameId]!.teams.map { $0.id }
+        let idsToNotify = gamesBase[gameId]!.teams.map { $0.id }
         return idsToNotify
     }
 
@@ -47,7 +47,7 @@ class GameModel {
             return 0
         }
         let gameId = game.id
-        var currentQuestionNumber = gamesBase[gameId]!.question
+        let currentQuestionNumber = gamesBase[gameId]!.question
         return currentQuestionNumber
 
     }
@@ -65,19 +65,19 @@ class GameModel {
     }
 
     private func getActiveGame(ownerId: String) -> Game? {
-        return gamesBase.values.first { $0.owner == ownerId && $0.isFinished == false }
+        gamesBase.values.first { $0.owner == ownerId && $0.isFinished == false }
     }
 
     func getTeamGame(teamId: String) -> Game? {
-        return gamesBase.values.first { $0.teams.map { $0.id }.contains(teamId) && $0.isFinished == false }
+        gamesBase.values.first { $0.teams.map { $0.id }.contains(teamId) && $0.isFinished == false }
     }
 
     private func isGameActive(gameId: String) -> Bool {
-        return gamesBase[gameId]?.isFinished == false
+        gamesBase[gameId]?.isFinished == false
     }
 
     func addTeamToTheGame(gameId: String, teamId: String, teamName: String) -> Team? {
-        guard var currentGame = gamesBase[gameId], isGameActive(gameId: gameId) else {
+        guard let currentGame = gamesBase[gameId], isGameActive(gameId: gameId) else {
             return nil
         }
 

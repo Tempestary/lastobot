@@ -84,7 +84,7 @@ class IcqApiHandler {
         request.httpBody = try? bodyBuilder(body: body)
 
         session.dataTask(with: request) { data, response, error in
-            if let response = response {
+            if response != nil {
 //                print("Response", response)
             }
             if let data = data {

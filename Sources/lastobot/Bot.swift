@@ -50,7 +50,7 @@ class Bot {
         case .newMessage(let data):
             let text = splitStringIntoCommandAndArguments(text: data.text, argumentCount: 2)
             if let parts = data.parts {
-                parts.map { if $0.type == "mention" {
+                parts.forEach { if $0.type == "mention" {
                     sendMessage(chatId: data.chat.chatId, text: "Я тут, я тут!", buttons: [helpButton])
                     }
                 }
@@ -81,7 +81,6 @@ class Bot {
                 if !gameModel.hasActiveGame(userId: data.from.userId) {
                     sendMessage(chatId: data.from.userId, text: "Похоже, у тебя нет активных игр. Чтобы что-то завершить, нужно что-то начать!", buttons: [startgameButton, joinButton])
                     print("LOGIC: no game to finish for userid \(chatData.chatId)")
-                    return
                 } else {
                     sendMessage(chatId: data.from.userId, text: "Действительно завершить игру?", buttons: [finishForceButton])
                 }
@@ -127,7 +126,6 @@ class Bot {
                                                                чтоб задавать вопросы или присоединись к игре, чтоб отвечать на вопросы!
                                                                """, buttons: [startgameButton, joinButton])
                     print("LOGIC: no game to finish for userid \(chatData.chatId)")
-                    return
                 }
             case .help:
                 sendMessage(chatId: chatData.chatId, text: """
@@ -171,7 +169,6 @@ class Bot {
             }
             let buttonsInside = buttons.chunked(into: 2)
             sendMessageToUser(message:TextMessage(text: text, buttons: buttonsInside, chatId: chatId))
-
             return
         }
         sendMessageToUser(message:TextMessage(text: text, buttons: [], chatId: chatId))
@@ -183,7 +180,7 @@ class Bot {
             message: message,
             completion: { result in
                 switch result {
-                case .success (let data):
+                case .success:
                     print("NETWORK SEND MESSAGE TO USER success")
                 case .failure (let error):
                     print("NETWORK SEND MESSAGE TO USER ERROR", error.localizedDescription)
@@ -235,7 +232,7 @@ class Bot {
                                                            Игра создана! ID новой игры: \(gameNumber), ее нужно передать капитанам.
                                                            Я сообщу тебе, когда команды начнут присоединяться к игре. После того, как все команды соберутся, читай первый вопрос, после чего жми "Задать первый вопрос - я начну отсчет до окончания времени вопроса.".
                                                            """, buttons: [teamsReadyButton, finishButton])
-        }
+            }
         case .join:
             guard let arguments = arguments else {
                 sendMessage(chatId: chatId, text: """
@@ -265,7 +262,6 @@ class Bot {
             } else {
                 sendMessage(chatId: chatId, text: "Похоже, у тебя нет активных игр. Чтобы что-то завершить, нужно что-то начать!", buttons: [startgameButton, joinButton])
                 print("LOGIC: no game to finish for userid \(chatId)")
-                return
             }
         case .answer:
             guard let arguments = arguments else {
@@ -282,8 +278,8 @@ class Bot {
                 print("LOGIC: failed to fetch user's \(chatId) active game to send answers to")
                 return
             }
-        sendMessage(chatId: currentGame.owner, text: "Вопрос \(currentGame.question - 1) - \(currentGame.teams.filter { $0.id == chatId }.map { $0.name } ) - \(args[0])")
-        sendMessage(chatId: chatId, text: #"Вы ответили "\#(args[0])" на вопрос \#(currentGame.question - 1). Отправлено."#)
+            sendMessage(chatId: currentGame.owner, text: "Вопрос \(currentGame.question - 1) - \(currentGame.teams.filter { $0.id == chatId }.map { $0.name } ) - \(args[0])")
+            sendMessage(chatId: chatId, text: #"Вы ответили "\#(args[0])" на вопрос \#(currentGame.question - 1). Отправлено."#)
         case .fb:
             guard let arguments = arguments else {
                 sendMessage(chatId: chatId, text: "Я не могу отправить пустой отзыв :(")
