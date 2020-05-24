@@ -181,7 +181,8 @@ class Bot {
             completion: { result in
                 switch result {
                 case .success(let data):
-                    print("NETWORK SENT DATA MESSAGE TO USER, data: \(data)")
+                    let data = String(decoding: data, as: UTF8.self)
+                    print("NETWORK SENT MESSAGE TO USER, message: \(message.text), data: \(data)")
                 case .failure (let error):
                     print("NETWORK SEND MESSAGE TO USER ERROR", error.localizedDescription)
                 }
