@@ -37,10 +37,11 @@ class IcqApiHandler {
                                 let result = try JSONDecoder().decode(GetEventsResult.self, from: data)
                                 completion(.success(result.events))
                             } catch {
-                                print(error)
+                                print("JSON ERROR: \(error.localizedDescription)")
                                 completion(.failure(.badJson))
                             }
                     case .failure(let error):
+                        print("NETWORK GET EVENTS ERROR: \(error.localizedDescription)")
                         completion(.failure(error))
                     }
                 }
@@ -82,14 +83,14 @@ class IcqApiHandler {
 
         session.dataTask(with: request) { data, response, error in
             if let response = response {
-                print("Response", response)
+//                print("Response", response)
             }
             if let data = data {
-                print("Data", String(decoding: data, as: UTF8.self))
+//                print("Data", String(decoding: data, as: UTF8.self))
                 completion(.success(data))
             }
             if let error = error {
-                print(error)
+                print("NETWORK SEND REQUEST ERROR: \(error.localizedDescription)")
                 completion(.failure(.server))
             }
         }.resume()
@@ -108,7 +109,6 @@ class IcqApiHandler {
         }
 
         components.queryItems = items
-//        print(components.url)
         return components.url
     }
 
