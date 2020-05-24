@@ -18,6 +18,7 @@ class GameModel {
 
     func createGame(ownerId: String, gameNumber: String) {
         gamesBase["\(gameNumber)"] = Game(id: gameNumber, owner: ownerId, isFinished: false, teams: [], question: 1)
+        print("LOGIC: GAME \(gameNumber) STARTED")
     }
 
     func finishGame(forOwnerId: String ) -> [String] {
@@ -28,7 +29,8 @@ class GameModel {
         gamesBase[gameId]!.isFinished = true
         var idsToNotify = gamesBase[gameId]!.teams.map { $0.id }
         idsToNotify += [gamesBase[gameId]!.owner]
-        dump(gamesBase)
+//        dump(gamesBase)
+        print("LOGIC: GAME \(gameId) FINISHED")
         return idsToNotify
     }
     func teamsToNotify(ownerId: String) -> [String] {
@@ -72,9 +74,6 @@ class GameModel {
 
     private func isGameActive(gameId: String) -> Bool {
         return gamesBase[gameId]?.isFinished == false
-
-//        let result = gamesBase.first { $0.key.contains(gameId)}
-//        return result?.value.isFinished == false
     }
 
     func addTeamToTheGame(gameId: String, teamId: String, teamName: String) -> Team? {

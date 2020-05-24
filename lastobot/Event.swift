@@ -26,16 +26,34 @@ struct NewMessagePayload: Codable {
     let from: From
     let timestamp: Int
     let text: String
-//    let parts: [Parts]?
+    let parts: [Parts]?
 }
 
 struct CallbackQueryPayload: Codable {
     let queryId: String
 //    let chat: Chat?
-    let message: NewMessagePayload
+    let message: CallbackPayload
     let from: From
     let callbackData: BotCommands
 }
+
+struct CallbackPayload: Codable {
+    let msgId: String?
+    let chat: Chat
+    let from: From
+    let timestamp: Int
+    let text: String
+//    let parts: [CallbackParts]?
+}
+
+//struct CallbackParts: Codable {
+//    let type: String?
+//    let payload: [PartsPayload]?
+//}
+//
+//struct Name {
+//
+//}
 
 struct Chat: Codable {
     let chatId: String
@@ -50,12 +68,18 @@ struct From: Codable {
 
 struct Parts: Codable {
     let type: String?
-    let payload: PartsPayload?
+//    let payload: [PartsPayload]?
 }
 
 struct PartsPayload: Codable {
     let fileId: String?
 }
+
+struct CallbackData: Codable {
+    let callbackData: String
+    let text: String
+}
+
 enum Payload {
     case newMessage(NewMessagePayload)
     case callbackQuery(CallbackQueryPayload)
@@ -99,14 +123,9 @@ extension Event {
                 return
             }
         case "callbackQuery":
-//            if let value = try? values.decode(CallbackQueryPayload.self, forKey: .payload) {
-//                self.payload = .callbackQuery(value)
-//                return
-//            }
             let value = try values.decode(CallbackQueryPayload.self, forKey: .payload)
                 self.payload = .callbackQuery(value)
                 return
-
         default:
             self.payload = .other
             return

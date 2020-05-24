@@ -49,8 +49,14 @@ class Bot {
         switch event.payload {
         case .newMessage(let data):
             let text = splitStringIntoCommandAndArguments(text: data.text, argumentCount: 2)
-            handleCommand(chatId: data.chat.chatId, command: text[0], arguments: text.count < 2 ? nil : text[1], chatData: data)
-
+            if let parts = data.parts {
+                parts.map { if $0.type == "mention" {
+                    sendMessage(chatId: data.chat.chatId, text: "Я тут, я тут!", buttons: [helpButton])
+                    }
+                }
+            } else {
+                handleCommand(chatId: data.chat.chatId, command: text[0], arguments: text.count < 2 ? nil : text[1], chatData: data)
+            }
         case .callbackQuery(let data):
             let chatData = data.message.chat
             switch data.callbackData {
@@ -62,6 +68,7 @@ class Bot {
                                                                Похоже, у тебя есть незавершенная игра. Пожалуйста,
                                                                 заверши ее перед тем, как создавать новую или присоединяться к игре
                                                                """, buttons: [finishButton])
+                    print("LOGIC: userid \(chatData.chatId) tried to start a new game without quitting the active one")
                 } else {
                     let gameNumber = gameModel.randomString(length: 9)
                     gameModel.createGame(ownerId: data.from.userId, gameNumber: gameNumber)
@@ -73,6 +80,7 @@ class Bot {
             case .finish:
                 if !gameModel.hasActiveGame(userId: data.from.userId) {
                     sendMessage(chatId: data.from.userId, text: "Похоже, у тебя нет активных игр. Чтобы что-то завершить, нужно что-то начать!", buttons: [startgameButton, joinButton])
+                    print("LOGIC: no game to finish for userid \(chatData.chatId)")
                     return
                 } else {
                     sendMessage(chatId: data.from.userId, text: "Действительно завершить игру?", buttons: [finishForceButton])
@@ -117,6 +125,8 @@ class Bot {
                                                                Ой-ой, у тебя нет активной игры. Начни игру, 
                                                                чтоб задавать вопросы или присоединись к игре, чтоб отвечать на вопросы!
                                                                """, buttons: [startgameButton, joinButton])
+                    print("LOGIC: no game to finish for userid \(chatData.chatId)")
+                    return
                 }
             case .help:
                 sendMessage(chatId: chatData.chatId, text: """
@@ -146,7 +156,6 @@ class Bot {
                 }
             default:
                 sendMessage(chatId: chatData.chatId, text: #"42, потому что 404 - это слишком избито. Если вы попали сюда, нажав кнопку, которая выглядит работающей, пожалуйста, дайте знать разработчику, вызвав в чате команду \fb с описанием проблемы"#)
-
             }
         default:
             break
@@ -189,14 +198,12 @@ class Bot {
                 guard let latestEvent = events.last else {
                     break
                 }
-
                 self.lastEventId = latestEvent.id
-
                 events.forEach(self.handleEvent)
-            case .failure:
+            case .failure(let error):
+                print("NETWORK ERROR: failed to fetch events, error: \(error.localizedDescription)")
                 return
             }
-
             self.fetchEvents()
         })
     }
@@ -219,6 +226,7 @@ class Bot {
                                                   Похоже, у тебя есть незавершенная игра. Пожалуйста, заверши ее
                                                    перед тем, как создавать новую или присоединяться к игре
                                                   """, buttons: [finishButton])
+                print("LOGIC: userid \(chatId) tried to start a new game without quitting the active one")
             } else {
                 let gameNumber = gameModel.randomString(length: 9)
                 gameModel.createGame(ownerId: chatId, gameNumber: gameNumber)
@@ -245,19 +253,18 @@ class Bot {
             }
             guard let team = gameModel.addTeamToTheGame(gameId: args[0], teamId: chatId, teamName: args[1]) else {
                 sendMessage(chatId: chatId, text: "Не удалось добавить вас к игре: игры с таким id не существует или она завершена")
+                print("LOGIC: failed to add user \(chatId) to game \(args[0]), as the game doesn't exist")
                 return
             }
             sendMessage(chatId: chatId, text: "Вы в игре! Как только все команды соберутся, ведущий зачитает первый вопрос, а я помогу собрать ответы.")
             sendMessage(chatId: gameModel.getOwnerById(gameId: args[0])!, text: "Команда \(team.name) вступила в игру", buttons: [teamsReadyButton, finishButton])
         case .finish:
             if gameModel.hasActiveGame(userId: chatId) {
-//                let usersToNotify = gameModel.finishGame(forOwnerId: chatId)
-//                for user in usersToNotify {
-//                    sendMessage(chatId: user, text: "Игра успешно закончена. Похлопаем ведущему и ласточке - и можно играть заново!", buttons: [startgameButton, joinButton])
-//                }
                 sendMessage(chatId: chatId, text: "Действительно завершить игру?", buttons: [finishForceButton])
             } else {
                 sendMessage(chatId: chatId, text: "Похоже, у тебя нет активных игр. Чтобы что-то завершить, нужно что-то начать!", buttons: [startgameButton, joinButton])
+                print("LOGIC: no game to finish for userid \(chatId)")
+                return
             }
         case .answer:
             guard let arguments = arguments else {
@@ -271,10 +278,9 @@ class Bot {
             let args = splitStringIntoCommandAndArguments(text: arguments, argumentCount: 1)
             guard let currentGame = gameModel.getTeamGame(teamId: chatId) else {
                 sendMessage(chatId: chatId, text: "Не удалось найти вашу активную игру. Возможно, вы не вступали в игровую сессию или игра была завершена")
+                print("LOGIC: failed to fetch user's \(chatId) active game to send answers to")
                 return
             }
-//        sendMessage(chatId: currentGame.owner, text: "Вопрос \(currentGame.question - 1) - \(currentGame.teams.filter { $0.id == chatId}.map { $0.name } ) - \(args[0])",
-//            buttons: [setQuestionTimerButton, finishButton])
         sendMessage(chatId: currentGame.owner, text: "Вопрос \(currentGame.question - 1) - \(currentGame.teams.filter { $0.id == chatId }.map { $0.name } ) - \(args[0])")
         sendMessage(chatId: chatId, text: #"Вы ответили "\#(args[0])" на вопрос \#(currentGame.question - 1). Отправлено."#)
         case .fb:
@@ -288,7 +294,7 @@ class Bot {
                 return
             }
             sendMessage(chatId: "752532504", text: "Отзыв от UID \(chatData.from.userId) (\(firstName)): \(args[0])")
-            sendMessage(chatId: chatId, text: "Отзыв отправлен. Спасибо! Если я понадоблюсь - просто вызовите команду /start в чате.")
+            sendMessage(chatId: chatId, text: "Отзыв отправлен. Спасибо! Если я понадоблюсь - просто вызовите команду /start или упомяните меня в чате.")
         case .help:
             sendMessage(chatId: chatId, text: """
                                                        Команды, которые я поддерживаю:
@@ -302,6 +308,8 @@ class Bot {
                                                        /rules - показать правила карантинного ЧГК
                                                        /fb arg1  - отправить отзыв обо мне или предложение, например "/fb ботик - котик"
                                                        """)
+        case .rules:
+            sendMessage(chatId: chatId, text: "\(welcomeText)", buttons: [startgameButton, joinButton,helpButton])
         default:
             return
 //            sendMessage(chatId: chatId, text: "Неизвестная команда", buttons: [BotCommands.help : "Помощь"])
