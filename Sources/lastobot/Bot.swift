@@ -180,8 +180,8 @@ class Bot {
             message: message,
             completion: { result in
                 switch result {
-                case .success:
-                    print("NETWORK SEND MESSAGE TO USER success")
+                case .success(let data):
+                    print("NETWORK SENT DATA MESSAGE TO USER, data: \(data)")
                 case .failure (let error):
                     print("NETWORK SEND MESSAGE TO USER ERROR", error.localizedDescription)
                 }
