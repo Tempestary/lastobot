@@ -4,7 +4,9 @@
 //
 
 import Foundation
-
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 enum NetworkError: Error {
     case url
