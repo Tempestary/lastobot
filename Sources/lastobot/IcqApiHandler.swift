@@ -15,9 +15,9 @@ enum NetworkError: Error {
 }
 
 class IcqApiHandler {
+
     let apiUrl = URL(string: "https://api.icq.net/bot/v1/")
-    let botToken = "001.2559782683.0320110086:752533235" // live bot
-//    let botToken = "001.3304796871.3745313231:753139972" // test bot
+    let botToken = ProcessInfo.processInfo.environment["LASTOBOT_TOKEN"] // live bot
     let session = URLSession.shared
 
     func getInfo(completion: @escaping (Result<Data, NetworkError>) -> Void) {
