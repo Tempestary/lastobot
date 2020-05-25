@@ -58,9 +58,19 @@ class Bot {
                 handleCommand(chatId: data.chat.chatId, command: text[0], arguments: text.count < 2 ? nil : text[1], chatData: data)
             }
         case .callbackQuery(let data):
+            apiHandler.callbackAnswer(queryId: data.queryId) { result in
+                switch result {
+                case .success:
+                    print("NETWORK: button callback answer sent")
+                case .failure(let error):
+                    print("NETWORK ERROR: failed to send a callback answer, error: \(error.localizedDescription)")
+                    return
+                }
+            }
             let chatData = data.message.chat
             switch data.callbackData {
             case .rules:
+
             sendMessage(chatId: chatData.chatId, text: "\(welcomeText)", buttons: [startgameButton, joinButton,helpButton])
             case .start:
                 if gameModel.hasActiveGame(userId: data.from.userId) {

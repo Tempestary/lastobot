@@ -16,7 +16,8 @@ enum NetworkError: Error {
 
 class IcqApiHandler {
     let apiUrl = URL(string: "https://api.icq.net/bot/v1/")
-    let botToken = "001.2559782683.0320110086:752533235"
+    let botToken = "001.2559782683.0320110086:752533235" // live bot
+//    let botToken = "001.3304796871.3745313231:753139972" // test bot
     let session = URLSession.shared
 
     func getInfo(completion: @escaping (Result<Data, NetworkError>) -> Void) {
@@ -66,6 +67,17 @@ class IcqApiHandler {
             }}] : [:],
             completion: completion
         )
+    }
+
+    func callbackAnswer(queryId: String, completion: @escaping (Result<Data, NetworkError>) -> Void) {
+        sendRequest(
+            httpMethod: "GET",
+            endpoint: "messages/answerCallbackQuery",
+            params: [
+                "queryId": queryId
+            ],
+            body: [:],
+            completion: completion)
     }
 
     private func sendRequest(httpMethod: String, endpoint: String, params: [String: CustomStringConvertible?],
