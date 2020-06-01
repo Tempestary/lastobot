@@ -19,6 +19,7 @@ class IcqApiHandler {
     let apiUrl = URL(string: "https://api.icq.net/bot/v1/")
     let botToken = ProcessInfo.processInfo.environment["LASTOBOT_TOKEN"] // live bot
     let session = URLSession.shared
+    let timeout: Float = 20.0
 
     func getInfo(completion: @escaping (Result<Data, NetworkError>) -> Void) {
         sendRequest(httpMethod: "GET", endpoint: "self/get", params: [:], body: [:], completion: completion)
@@ -92,19 +93,22 @@ class IcqApiHandler {
         request.httpMethod = httpMethod
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
-//        if let body = body {}
         request.httpBody = try? bodyBuilder(body: body)
+        self.sendRequest(request: request, retryNumber: 0, completion: completion)
+    }
 
+    private func sendRequest(request: URLRequest, retryNumber: Int, completion: @escaping (Result<Data, NetworkError>) -> Void) {
         session.dataTask(with: request) { data, response, error in
-            if response != nil {
-//                print("Response", response)
+            if let error = error {
+                print("NETWORK SEND REQUEST ERROR: \(error.localizedDescription), retrying for the \(retryNumber+1) time")
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(3), execute: {
+                    self.sendRequest(request: request, retryNumber: retryNumber+1, completion: completion)
+                })
+                return
             }
             if let data = data {
-//                print("Data", String(decoding: data, as: UTF8.self))
                 completion(.success(data))
-            }
-            if let error = error {
-                print("NETWORK SEND REQUEST ERROR: \(error.localizedDescription)")
+            } else {
                 completion(.failure(.server))
             }
         }.resume()
