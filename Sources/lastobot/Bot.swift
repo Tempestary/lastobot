@@ -204,11 +204,11 @@ class Bot {
         apiHandler.getEvents(lastEventId: lastEventId, completion: { result in
             switch result {
             case .success(let events):
-                guard let latestEvent = events.last else {
-                    break
+                if let latestEvent = events.last {
+                    self.lastEventId = latestEvent.id
+                    events.forEach(self.handleEvent)
                 }
-                self.lastEventId = latestEvent.id
-                events.forEach(self.handleEvent)
+                self.fetchEvents()
             case .failure(let error):
                 print("NETWORK ERROR: failed to fetch events, error: \(error.localizedDescription)")
                 // по таймеру перезапрашиваем, если не удалось распарсить json
@@ -216,7 +216,6 @@ class Bot {
                     self.fetchEvents()
                 })
             }
-            self.fetchEvents()
         })
     }
 
