@@ -211,7 +211,10 @@ class Bot {
                 events.forEach(self.handleEvent)
             case .failure(let error):
                 print("NETWORK ERROR: failed to fetch events, error: \(error.localizedDescription)")
-                return
+                // по таймеру перезапрашиваем, если не удалось распарсить json
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(3), execute: {
+                    self.fetchEvents()
+                })
             }
             self.fetchEvents()
         })
